@@ -37,6 +37,8 @@ export async function POST(request: Request){
             })
             await newUser.save()
         }
+        const emailResponse = await sendVerificationEmail(email, username, verifyCode)
+        return Response.json(emailResponse)
     }
 
     catch(error){
