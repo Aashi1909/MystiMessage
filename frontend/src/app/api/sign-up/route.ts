@@ -16,11 +16,27 @@ export async function POST(request: Request){
                 message: "Username is already taken"
             },{status:400})
         }
+        //if existing user exists by email then....check if it verified 
         const existingUserByEmail= await UserModel.findOne({email})
         const verifyCode = Math.floor(100000+ Math.random()*900000).toString()
+        //if existing user by email is verified then success:false
         if(existingUserByEmail){
+            if(existingUserByEmail.isVerified){
+                return Response.json({
+                    success: false,
+                    message: "User already exists with this email."
+                },{status:400})
+            }
+            else{// if user email exist but it is not verified
+                const hashedPassword = await bcrypt.hash(password, 10)
+                existingUserByEmail.password = hashedPassword
+                existingUserByEmail.verifyCode = verifyCode
+                existingUserByEmail.verifyCodeExpiry = new Date(Date.now() + 60*60*1000)
+                await existingUserByEmail.save()
 
-        }else{
+            }
+
+        }else{ //save the updated user
             const hashedPassword = await bcrypt.hash(password, 10)
             const expiryDate = new Date()
             expiryDate.setHours(expiryDate.getHours() + 1) 
@@ -37,8 +53,20 @@ export async function POST(request: Request){
             })
             await newUser.save()
         }
+        //send verification email
         const emailResponse = await sendVerificationEmail(email, username, verifyCode)
-        return Response.json(emailResponse)
+        if(!emailResponse.success){
+            return Response.json({
+                success: false,
+                message: emailResponse.message
+            },{status:500}) 
+        }
+        return Response.json(
+            {success: true, message:"User registered successfully.PLease verify your Email."},
+            {
+                status:200
+            }
+        )
     }
 
     catch(error){
